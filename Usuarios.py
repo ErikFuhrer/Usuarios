@@ -3,8 +3,8 @@ from tkinter import messagebox, ttk
 import pymysql
 
 host = "localhost"
-usuario = "root"
-contrasena = "657e.89I"
+usuario = "usuario"
+contrasena = "contraseña"
 
 def obtener_usuarios():
     try:
