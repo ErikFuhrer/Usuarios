@@ -1,24 +1,21 @@
-import tkinter as tk
-from tkinter import messagebox, ttk
+import ttkbootstrap as tb
+from ttkbootstrap.constants import *
+from tkinter import messagebox
 import pymysql
 
+# --- Configuración base ---
 host = "localhost"
 usuario = "usuario"
 contrasena = "contraseña"
 
+# --- Funciones de base de datos ---
 def obtener_usuarios():
     try:
-        conn = pymysql.connect(
-            host=host,
-            user=usuario,
-            password=contrasena
-        )
+        conn = pymysql.connect(host=host, user=usuario, password=contrasena)
         cursor = conn.cursor()
-        try:
-            cursor.execute("SELECT `User`FROM mysql.`user` u WHERE u.`User` like 'db_%'")
-            usuarios = [user[0] for user in cursor.fetchall()]
-        finally:
-            conn.close()
+        cursor.execute("SELECT `User` FROM mysql.`user` u WHERE u.`User` like 'db_%'")
+        usuarios = [user[0] for user in cursor.fetchall()]
+        conn.close()
         return usuarios
     except pymysql.MySQLError as error:
         messagebox.showerror("Error", f"No se pudieron obtener los usuarios: {error}")
@@ -42,37 +39,27 @@ def crear_usuario():
         return
 
     try:
-        conn = pymysql.connect(
-            host=host,
-            user=usuario,
-            password=contrasena,
-            autocommit=True
-        )
-        with conn.cursor() as cursor:
-            # Verificar si el usuario ya existe
-            cursor.execute("SELECT COUNT(*) FROM mysql.user WHERE user = %s", (usu,))
-            if cursor.fetchone()[0] > 0:
-                messagebox.showerror("Error", f"El usuario '{usu}' ya existe.")
-                return
+        conn = pymysql.connect(host=host, user=usuario, password=contrasena, autocommit=True)
+        cursor = conn.cursor()
 
-            # Verificar si la base de datos ya existe
-            cursor.execute("SHOW DATABASES LIKE %s", (nombredb,))
-            if cursor.fetchone():
-                messagebox.showerror("Error", f"La base de datos '{nombredb}' ya existe.")
-                return
+        # Verificar existencia
+        cursor.execute("SELECT COUNT(*) FROM mysql.user WHERE user = %s", (usu,))
+        if cursor.fetchone()[0] > 0:
+            messagebox.showerror("Error", f"El usuario '{usu}' ya existe.")
+            return
 
-            # Crear la base de datos
-            cursor.execute(f"CREATE DATABASE `{nombredb}`")
+        cursor.execute("SHOW DATABASES LIKE %s", (nombredb,))
+        if cursor.fetchone():
+            messagebox.showerror("Error", f"La base de datos '{nombredb}' ya existe.")
+            return
 
-            # Crear el usuario
-            cursor.execute(f"CREATE USER %s@'%%' IDENTIFIED BY %s", (usu, contr))
+        # Crear usuario y base
+        cursor.execute(f"CREATE DATABASE `{nombredb}`")
+        cursor.execute(f"CREATE USER %s@'%%' IDENTIFIED BY %s", (usu, contr))
+        cursor.execute(f"GRANT ALL PRIVILEGES ON `{nombredb}`.* TO %s@'%%'", (usu,))
 
-            # Dar permisos solo sobre su propia base de datos
-            cursor.execute(f"GRANT ALL PRIVILEGES ON `{nombredb}`.* TO %s@'%%'", (usu,))
-
-            messagebox.showinfo("Éxito", f"Usuario '{usu}' y base de datos '{nombredb}' creados con éxito.")
-            actualizar_lista_usuarios()
-
+        messagebox.showinfo("Éxito", f"Usuario '{usu}' y base de datos '{nombredb}' creados con éxito.")
+        actualizar_lista_usuarios()
     except pymysql.MySQLError as error:
         messagebox.showerror("Error MySQL", f"Ocurrió un error: {error}")
     finally:
@@ -84,50 +71,49 @@ def eliminar_usuario():
         messagebox.showerror("Error", "Debes seleccionar un usuario para eliminar.")
         return
 
-    confirm = messagebox.askyesno("Confirmar", f"¿Eliminar usuario '{nombreusuario}' y su base de datos '{nombreusuario}'?")
+    confirm = messagebox.askyesno("Confirmar", f"¿Eliminar usuario '{nombreusuario}' y su base de datos?")
     if not confirm:
         return
 
     try:
-        conn = pymysql.connect(
-            host=host,
-            user=usuario,
-            password=contrasena,
-            autocommit=True
-        )
-        with conn.cursor() as cursor:
-            # Eliminar usuario y base de datos
-            cursor.execute(f"DROP USER IF EXISTS %s@'%%'", (nombreusuario,))
-            cursor.execute(f"DROP DATABASE IF EXISTS `{nombreusuario}`")
+        conn = pymysql.connect(host=host, user=usuario, password=contrasena, autocommit=True)
+        cursor = conn.cursor()
 
-            messagebox.showinfo("Eliminado", f"Usuario '{nombreusuario}' y base de datos '{nombreusuario}' eliminados correctamente.")
-            actualizar_lista_usuarios()
+        cursor.execute(f"DROP USER IF EXISTS %s@'%%'", (nombreusuario,))
+        cursor.execute(f"DROP DATABASE IF EXISTS `{nombreusuario}`")
 
+        messagebox.showinfo("Eliminado", f"Usuario y base de datos '{nombreusuario}' eliminados correctamente.")
+        actualizar_lista_usuarios()
     except pymysql.MySQLError as error:
         messagebox.showerror("Error", f"No se pudo eliminar: {error}")
     finally:
         conn.close()
 
-# --- Interfaz Gráfica ---
-ventana = tk.Tk()
-ventana.title("Gestor de Usuarios")
-ventana.geometry("300x300")
+# --- Interfaz gráfica con ttkbootstrap ---
+ventana = tb.Window(themename="solar")
+ventana.title("Gestor de Usuarios MySQL")
+ventana.geometry("400x400")
+ventana.resizable(False, False)
 
-tk.Label(ventana, text="Nombre de usuario:").pack()
-tbusuario = tk.Entry(ventana)
-tbusuario.pack()
+frm = tb.Frame(ventana, padding=20)
+frm.pack(fill=BOTH, expand=True)
 
-tk.Label(ventana, text="Contraseña:").pack()
-tbpassword = tk.Entry(ventana, show="*")
-tbpassword.pack()
+# --- Widgets ---
+tb.Label(frm, text="Nombre de usuario:", anchor="w").pack(fill=X, pady=(0, 5))
+tbusuario = tb.Entry(frm)
+tbusuario.pack(fill=X, pady=(0, 10))
 
-tk.Button(ventana, text="Crear Usuario y BD", command=crear_usuario).pack(pady=5)
+tb.Label(frm, text="Contraseña:", anchor="w").pack(fill=X, pady=(0, 5))
+tbpassword = tb.Entry(frm, show="*")
+tbpassword.pack(fill=X, pady=(0, 15))
 
-tk.Label(ventana, text="Usuarios existentes:").pack()
-listausuarios = ttk.Combobox(ventana, state="readonly")
-listausuarios.pack(pady=5)
+tb.Button(frm, text="Crear Usuario y BD", command=crear_usuario, bootstyle=SUCCESS).pack(fill=X, pady=5)
+
+tb.Label(frm, text="Usuarios existentes:", anchor="w").pack(fill=X, pady=(15, 5))
+listausuarios = tb.Combobox(frm, state="readonly")
+listausuarios.pack(fill=X, pady=5)
 actualizar_lista_usuarios()
 
-tk.Button(ventana, text="Eliminar Usuario Seleccionado", command=eliminar_usuario, bg="red", fg="white").pack(pady=5)
+tb.Button(frm, text="Eliminar Usuario Seleccionado", command=eliminar_usuario, bootstyle=DANGER).pack(fill=X, pady=10)
 
 ventana.mainloop()
